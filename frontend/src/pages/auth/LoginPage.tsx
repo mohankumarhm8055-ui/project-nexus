@@ -20,15 +20,35 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { login } = useAuthStore();
+  const [errorMsg, setErrorMsg] = useState('');
+  const [backendMode, setBackendMode] = useState<'real' | 'mock' | null>(null);
+  const { login, loginWithCredentials } = useAuthStore();
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    await new Promise(r => setTimeout(r, 1200));
+    setErrorMsg('');
+
+    // Try real backend first if credentials provided
+    if (email && password) {
+      try {
+        await loginWithCredentials(email, password);
+        const { user } = useAuthStore.getState();
+        setBackendMode('real');
+        navigate(`/${user?.role}`);
+        return;
+      } catch {
+        // Backend offline or wrong creds — fall through to mock
+        setBackendMode('mock');
+      }
+    }
+
+    // Mock login fallback (no email needed in dev)
+    await new Promise(r => setTimeout(r, 600));
     login(selectedRole);
     navigate(`/${selectedRole}`);
+    setLoading(false);
   };
 
   const selectedRoleData = roles.find(r => r.id === selectedRole)!;
@@ -190,7 +210,33 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="text-center text-xs text-slate-600 mt-6">
+          {/* Error message */}
+          {errorMsg && (
+            <div className="mt-3 px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs text-center">
+              {errorMsg}
+            </div>
+          )}
+
+          {/* Backend mode indicator */}
+          {backendMode && (
+            <div className={`mt-3 px-4 py-2 rounded-xl text-xs text-center flex items-center justify-center gap-2 ${backendMode === 'real' ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${backendMode === 'real' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+              {backendMode === 'real' ? '✅ Connected to backend API' : '⚡ Running in offline demo mode'}
+            </div>
+          )}
+
+          {/* Dev hint */}
+          <div className="mt-4 p-3 rounded-xl bg-white/[0.02] border border-white/5">
+            <p className="text-[10px] text-slate-600 font-semibold uppercase tracking-wider mb-2">Quick Access</p>
+            <p className="text-[11px] text-slate-500">
+              <span className="text-slate-400 font-medium">With backend:</span> Enter real email + <code className="text-indigo-400">Nexus@123</code>
+            </p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              <span className="text-slate-400 font-medium">Without backend:</span> Select role → click Sign In (any credentials)
+            </p>
+          </div>
+
+          <p className="text-center text-xs text-slate-600 mt-4">
             Don't have an account?{' '}
             <button className="text-indigo-400 hover:text-indigo-300 transition-colors font-medium">Contact your administrator</button>
           </p>
