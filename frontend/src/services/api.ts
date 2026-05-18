@@ -61,10 +61,12 @@ api.interceptors.response.use(
 
       try {
         const res = await axios.post(`${BASE_URL}/auth/refresh-token`, { refreshToken });
-        const { accessToken, refreshToken: newRefresh } = res.data.data;
-        tokenStorage.set(accessToken, newRefresh);
-        processQueue(null, accessToken);
-        original.headers.Authorization = `Bearer ${accessToken}`;
+        const payload = res.data?.data || res.data;
+        const nextAccessToken = payload.token || payload.accessToken;
+        const nextRefreshToken = payload.refreshToken;
+        tokenStorage.set(nextAccessToken, nextRefreshToken);
+        processQueue(null, nextAccessToken);
+        original.headers.Authorization = `Bearer ${nextAccessToken}`;
         return api(original);
       } catch (refreshError) {
         processQueue(refreshError);

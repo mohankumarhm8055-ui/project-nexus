@@ -10,6 +10,7 @@ export interface User {
   year?: number;
   rollNumber?: string;
   employeeId?: string;
+  profileId?: string;
 }
 
 export interface Subject {

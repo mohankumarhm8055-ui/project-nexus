@@ -43,7 +43,7 @@ app.use(morgan(morganFormat, {
 }));
 
 // ── Static file serving ───────────────────────────────────────────────────────
-app.use('/uploads', express.static(path.join(__dirname, '../src/uploads')));
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────
 app.use('/api', generalLimiter);

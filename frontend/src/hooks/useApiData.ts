@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { studentAPI, attendanceAPI, marksAPI, hodAPI, parentAPI, placementAPI, adminAPI, aiAPI, notificationAPI } from '../services/apiServices';
+import { attendanceAPI, marksAPI, hodAPI, parentAPI, placementAPI, adminAPI, aiAPI, notificationAPI } from '../services/apiServices';
 import * as mock from '../utils/mockData';
 
 // ── Generic async hook ─────────────────────────────────────────────────────
 function useAsync<T>(
-  fetchFn: () => Promise<{ data: T }>,
+  fetchFn: () => Promise<{ data: T; pagination?: unknown }>,
   mockData: T,
   deps: unknown[] = []
 ) {
@@ -18,7 +18,10 @@ function useAsync<T>(
     setLoading(true);
     try {
       const res = await fetchFn();
-      setData(res.data);
+      const normalized = res.pagination && Array.isArray(res.data)
+        ? ({ data: res.data, pagination: res.pagination } as T)
+        : res.data;
+      setData(normalized);
       setIsFromAPI(true);
       setError(null);
     } catch {
@@ -201,5 +204,42 @@ export function useAttendanceHeatmap(studentId?: string) {
     () => attendanceAPI.heatmap(id, 31),
     mock.attendanceHeatmap.map(d => ({ date: `2026-05-${String(d.date).padStart(2,'0')}`, status: d.status, count: d.status === 'present' ? 3 : 0 })),
     [id]
+  );
+}
+
+// ── Faculty profile hook ──────────────────────────────────────────────────
+import { facultyAPI as _facAPI } from '../services/apiServices';
+export function useFacultyProfile() {
+  return useAsync(
+    () => _facAPI.me(),
+    { name: '', designation: 'Faculty', department: null, subjects: [], employeeId: '' },
+    []
+  );
+}
+
+// ── Child overview hook (Parent) ──────────────────────────────────────────
+export function useChildOverview(studentId?: string) {
+  return useAsync(
+    () => studentId ? parentAPI.childOverview(studentId) : Promise.resolve({ data: null }),
+    { student: null, attendanceSummary: null, marksSummary: null, aiAnalytics: null },
+    [studentId]
+  );
+}
+
+// ── Admin users hook ──────────────────────────────────────────────────────
+export function useAdminUsers(params?: Record<string, unknown>) {
+  return useAsync(
+    () => adminAPI.users(params),
+    { data: [], pagination: {} },
+    [JSON.stringify(params)]
+  );
+}
+
+// ── Dept AI trends hook ───────────────────────────────────────────────────
+export function useDeptAITrends(departmentId?: string) {
+  return useAsync(
+    () => departmentId ? aiAPI.deptTrends(departmentId) : Promise.resolve({ data: { riskDistribution: {}, trendDistribution: {}, avgRiskScore: 0, totalAnalyzed: 0 } }),
+    { riskDistribution: { low: 0, medium: 0, high: 0, critical: 0 }, trendDistribution: {}, avgRiskScore: 0, totalAnalyzed: 0 },
+    [departmentId]
   );
 }

@@ -1,39 +1,60 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Users, AlertTriangle, TrendingUp, Brain, Send, CheckCircle, Clock, BarChart3, Zap } from 'lucide-react';
+import { Users, AlertTriangle, TrendingUp, Brain, Send, CheckCircle, Clock, BarChart3, Zap, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Card, SectionHeader } from '../../components/ui';
 import PageTransition from '../../components/layout/PageTransition';
 import { useAuthStore } from '../../store/authStore';
 import { useNavigate } from 'react-router-dom';
-import { deptMetrics, hodStudents, facultyStatus, weeklyDeptAttendance } from '../../utils/mockData';
+import { useHODDashboard, useWeakStudents, useFacultyStatus } from '../../hooks/useApiData';
+import { weeklyDeptAttendance } from '../../utils/mockData';
+import { hodAPI } from '../../services/apiServices';
 
 export default function HODDashboard() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const [triggering, setTriggering] = useState(false);
 
-  const highRisk = hodStudents.filter(s => s.riskLevel === 'high');
+  const { data: dashboard, isFromAPI } = useHODDashboard();
+  const { data: weakStudents } = useWeakStudents();
+  const { data: facultyList } = useFacultyStatus();
+
+  const criticalStudents = Array.isArray(weakStudents)
+    ? weakStudents.filter((r: { riskLevel?: string; student?: { name: string } }) => r.student && (r.riskLevel === 'critical' || r.riskLevel === 'high')).slice(0, 4)
+    : [];
+
+  const handleTriggerAI = async () => {
+    setTriggering(true);
+    try { await hodAPI.triggerAI(); } catch { /* ignore */ }
+    setTimeout(() => setTriggering(false), 2000);
+  };
 
   return (
     <PageTransition>
       <SectionHeader
-        title={`Department Command Center`}
+        title="Department Command Center"
         subtitle={`${user?.department ?? 'Department'} — Academic Monitoring Overview`}
         action={
-          <button onClick={() => setBroadcastOpen(true)} className="nexus-btn-teal flex items-center gap-2 text-sm">
-            <Zap className="w-4 h-4" /> Emergency Broadcast
-          </button>
+          <div className="flex items-center gap-3">
+            <span className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-full ${isFromAPI ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-500'}`}>
+              {isFromAPI ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+              {isFromAPI ? 'Live Data' : 'Demo Mode'}
+            </span>
+            <button onClick={() => setBroadcastOpen(true)} className="nexus-btn-teal flex items-center gap-2 text-sm">
+              <Zap className="w-4 h-4" /> Emergency Broadcast
+            </button>
+          </div>
         }
       />
 
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
-          { icon: Users, label: 'Total Students', value: deptMetrics.totalStudents, sub: `${deptMetrics.activeFaculty} active faculty`, color: 'text-teal-400', bg: 'bg-teal-500/15' },
-          { icon: AlertTriangle, label: 'At-Risk Students', value: deptMetrics.atRiskCount, sub: `${deptMetrics.highRiskCount} critical`, color: 'text-red-400', bg: 'bg-red-500/15' },
-          { icon: TrendingUp, label: 'Avg Attendance', value: `${deptMetrics.avgAttendance}%`, sub: 'This month', color: 'text-emerald-400', bg: 'bg-emerald-500/15' },
-          { icon: BarChart3, label: 'Dept Avg CGPA', value: deptMetrics.avgCGPA, sub: 'Semester 6', color: 'text-violet-400', bg: 'bg-violet-500/15' },
+          { icon: Users,         label: 'Total Students',   value: dashboard?.totalStudents ?? '—',         sub: `${dashboard?.totalFaculty ?? 0} active faculty`,    color: 'text-teal-400',   bg: 'bg-teal-500/15' },
+          { icon: AlertTriangle, label: 'Low Attendance',   value: dashboard?.lowAttendanceCount ?? '—',    sub: 'Below 75% threshold',                               color: 'text-red-400',    bg: 'bg-red-500/15' },
+          { icon: TrendingUp,    label: 'At-Risk Students', value: dashboard?.atRiskCount ?? '—',           sub: 'AI flagged',                                        color: 'text-amber-400',  bg: 'bg-amber-500/15' },
+          { icon: BarChart3,     label: 'Faculty Active',   value: dashboard?.totalFaculty ?? '—',          sub: 'In department',                                     color: 'text-violet-400', bg: 'bg-violet-500/15' },
         ].map((item, i) => (
           <motion.div key={item.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }} className="glass rounded-2xl p-5">
             <div className={`w-10 h-10 rounded-xl ${item.bg} flex items-center justify-center mb-3`}>
@@ -77,72 +98,90 @@ export default function HODDashboard() {
           </div>
           <div className="space-y-3">
             <div className="flex justify-between items-center p-3 bg-red-500/8 rounded-xl border border-red-500/20">
-              <span className="text-sm text-slate-300">High Risk</span>
-              <span className="text-lg font-bold text-red-400">{deptMetrics.highRiskCount}</span>
+              <span className="text-sm text-slate-300">At Risk (AI)</span>
+              <span className="text-lg font-bold text-red-400">{dashboard?.atRiskCount ?? 0}</span>
             </div>
             <div className="flex justify-between items-center p-3 bg-amber-500/8 rounded-xl border border-amber-500/20">
-              <span className="text-sm text-slate-300">Medium Risk</span>
-              <span className="text-lg font-bold text-amber-400">{deptMetrics.mediumRiskCount}</span>
+              <span className="text-sm text-slate-300">Low Attendance</span>
+              <span className="text-lg font-bold text-amber-400">{dashboard?.lowAttendanceCount ?? 0}</span>
             </div>
             <div className="flex justify-between items-center p-3 bg-emerald-500/8 rounded-xl border border-emerald-500/20">
-              <span className="text-sm text-slate-300">Pending Reports</span>
-              <span className="text-lg font-bold text-emerald-400">{deptMetrics.pendingReports}</span>
+              <span className="text-sm text-slate-300">Total Faculty</span>
+              <span className="text-lg font-bold text-emerald-400">{dashboard?.totalFaculty ?? 0}</span>
             </div>
           </div>
-          <button onClick={() => navigate('/hod/risk')} className="w-full mt-4 nexus-btn-teal text-sm">View Risk Monitor →</button>
+          <button onClick={handleTriggerAI} disabled={triggering}
+            className="w-full mt-4 nexus-btn-teal text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+            <RefreshCw className={`w-3.5 h-3.5 ${triggering ? 'animate-spin' : ''}`} />
+            {triggering ? 'Analyzing...' : 'Trigger AI Analysis'}
+          </button>
+          <button onClick={() => navigate('/hod/risk')} className="w-full mt-2 nexus-btn-ghost text-sm">
+            View Risk Monitor →
+          </button>
         </Card>
 
-        {/* Critical Students */}
+        {/* Critical Students — REAL */}
         <Card delay={0.2} className="lg:col-span-2">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-white font-semibold">Critical Students — Immediate Action</h3>
-            <span className="risk-high">{highRisk.length} Critical</span>
+            <h3 className="text-white font-semibold">AI-Flagged Students — Immediate Action</h3>
+            <span className="risk-high">{criticalStudents.length} Critical</span>
           </div>
           <div className="space-y-2">
-            {highRisk.map((s, i) => (
-              <motion.div key={s.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 + i * 0.06 }}
-                className="flex items-center justify-between p-3 glass rounded-xl">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center text-red-400 font-bold text-sm">{s.name[0]}</div>
-                  <div>
-                    <p className="text-sm text-white font-medium">{s.name}</p>
-                    <p className="text-xs text-slate-500">{s.rollNumber} · Year {s.year}</p>
+            {criticalStudents.length === 0 && (
+              <p className="text-slate-500 text-sm text-center py-6">No critical students detected 🎉</p>
+            )}
+            {criticalStudents.map((r: { student?: { name: string; usn?: string; semester?: number }; riskScore?: number; riskLevel?: string; attendanceTrend?: { current?: number } }, i: number) => {
+              const s = r.student;
+              if (!s) return null;
+              return (
+                <motion.div key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 + i * 0.06 }}
+                  className="flex items-center justify-between p-3 glass rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center text-red-400 font-bold text-sm">{s.name[0]}</div>
+                    <div>
+                      <p className="text-sm text-white font-medium">{s.name}</p>
+                      <p className="text-xs text-slate-500">{s.usn} · Sem {s.semester}</p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-4 text-xs">
-                  <div className="text-center">
-                    <p className="font-semibold text-red-400">{s.attendance}%</p>
-                    <p className="text-slate-600">Attend.</p>
+                  <div className="flex items-center gap-4 text-xs">
+                    <div className="text-center">
+                      <p className="font-semibold text-red-400">{r.attendanceTrend?.current?.toFixed(0) ?? '—'}%</p>
+                      <p className="text-slate-600">Attend.</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="font-semibold text-amber-400">{r.riskScore ?? 0}</p>
+                      <p className="text-slate-600">Risk</p>
+                    </div>
+                    <span className={r.riskLevel === 'critical' ? 'badge-red' : 'badge-yellow'}>{r.riskLevel}</span>
                   </div>
-                  <div className="text-center">
-                    <p className="font-semibold text-amber-400">{s.cgpa}</p>
-                    <p className="text-slate-600">CGPA</p>
-                  </div>
-                  <button className="nexus-btn-teal text-xs px-3 py-1.5 flex items-center gap-1">
-                    <Send className="w-3 h-3" /> Alert
-                  </button>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
           </div>
         </Card>
 
-        {/* Faculty Submission Status */}
+        {/* Faculty Status — REAL */}
         <Card delay={0.25}>
-          <h3 className="text-white font-semibold mb-4">Faculty Submission Status</h3>
+          <h3 className="text-white font-semibold mb-4">Faculty in Department</h3>
           <div className="space-y-2.5">
-            {facultyStatus.map(f => (
-              <div key={f.id} className="flex items-center justify-between">
+            {Array.isArray(facultyList) && facultyList.length === 0 && (
+              <p className="text-slate-500 text-xs text-center py-4">No faculty data available</p>
+            )}
+            {Array.isArray(facultyList) && facultyList.map((f: { _id?: string; name: string; designation?: string; subjects?: { name: string }[]; isActive?: boolean }, i: number) => (
+              <div key={f._id || i} className="flex items-center justify-between">
                 <div className="min-w-0">
                   <p className="text-xs text-slate-300 font-medium truncate">{f.name}</p>
-                  <p className="text-xs text-slate-600 truncate">{f.subject}</p>
+                  <p className="text-xs text-slate-600 truncate">{f.subjects?.[0]?.name || f.designation || 'Faculty'}</p>
                 </div>
-                {f.submitted
-                  ? <span className="flex items-center gap-1 text-xs text-emerald-400 font-medium flex-shrink-0"><CheckCircle className="w-3.5 h-3.5" />Done</span>
-                  : <span className="flex items-center gap-1 text-xs text-amber-400 font-medium flex-shrink-0"><Clock className="w-3.5 h-3.5" />Pending</span>}
+                {f.isActive
+                  ? <span className="flex items-center gap-1 text-xs text-emerald-400 font-medium flex-shrink-0"><CheckCircle className="w-3.5 h-3.5" />Active</span>
+                  : <span className="flex items-center gap-1 text-xs text-slate-500 font-medium flex-shrink-0"><Clock className="w-3.5 h-3.5" />Inactive</span>}
               </div>
             ))}
           </div>
+          <button onClick={() => navigate('/hod/analytics')} className="w-full mt-4 nexus-btn-ghost text-sm">
+            View Analytics →
+          </button>
         </Card>
       </div>
 
@@ -162,7 +201,9 @@ export default function HODDashboard() {
             <textarea className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-red-500/50 resize-none mb-4" rows={4} placeholder="Type your emergency message..." />
             <div className="flex gap-3">
               <button className="flex-1 nexus-btn-ghost text-sm" onClick={() => setBroadcastOpen(false)}>Cancel</button>
-              <button className="flex-1 bg-red-600 hover:bg-red-500 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors" onClick={() => setBroadcastOpen(false)}>🚨 Send Now</button>
+              <button className="flex-1 bg-red-600 hover:bg-red-500 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2" onClick={() => setBroadcastOpen(false)}>
+                <Send className="w-4 h-4" /> 🚨 Send Now
+              </button>
             </div>
           </motion.div>
         </div>

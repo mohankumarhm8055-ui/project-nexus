@@ -21,8 +21,8 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [backendMode, setBackendMode] = useState<'real' | 'mock' | null>(null);
-  const { login, loginWithCredentials } = useAuthStore();
+  const [backendMode, setBackendMode] = useState<'real' | null>(null);
+  const { loginWithCredentials } = useAuthStore();
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -30,25 +30,38 @@ export default function LoginPage() {
     setLoading(true);
     setErrorMsg('');
 
-    // Try real backend first if credentials provided
+    // If email+password provided — try real backend
+    if (!email || !password) {
+      setErrorMsg('Email and password are required.');
+      setLoading(false);
+      return;
+    }
+
     if (email && password) {
       try {
         await loginWithCredentials(email, password);
         const { user } = useAuthStore.getState();
         setBackendMode('real');
+        setLoading(false);
         navigate(`/${user?.role}`);
         return;
-      } catch {
-        // Backend offline or wrong creds — fall through to mock
-        setBackendMode('mock');
+      } catch (err: unknown) {
+        // If we got a real HTTP error (backend is up but creds wrong), show it
+        const httpStatus = (err as { response?: { status?: number } })?.response?.status;
+        if (httpStatus && httpStatus !== 0) {
+          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Invalid credentials.';
+          setErrorMsg(msg);
+          setLoading(false);
+          return;
+        }
+        // Backend offline — fall through to mock
+        setErrorMsg('Unable to reach the backend API.');
+        setLoading(false);
+        return;
       }
     }
 
-    // Mock login fallback (no email needed in dev)
-    await new Promise(r => setTimeout(r, 600));
-    login(selectedRole);
-    navigate(`/${selectedRole}`);
-    setLoading(false);
+    // Mock login fallback (dev — works without backend)
   };
 
   const selectedRoleData = roles.find(r => r.id === selectedRole)!;

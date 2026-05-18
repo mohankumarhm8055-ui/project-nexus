@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { Code2, CheckCircle, Clock, ExternalLink } from 'lucide-react';
 import { skillData } from '../../utils/mockData';
 import { Card, SectionHeader, ProgressBar } from '../../components/ui';

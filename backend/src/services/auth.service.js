@@ -41,7 +41,7 @@ class AuthService {
     const profile = await this._getProfile(user);
     logger.info(`User logged in: ${user.email} [${user.role}]`);
 
-    return { accessToken, refreshToken, user: user.toSafeObject(), profile };
+    return { token: accessToken, accessToken, refreshToken, user: user.toSafeObject(), profile };
   }
 
   // ── Refresh token ──────────────────────────────────────────────────────────
@@ -73,7 +73,7 @@ class AuthService {
     });
     await user.save({ validateBeforeSave: false });
 
-    return { accessToken: newAccessToken, refreshToken: newRefreshToken };
+    return { token: newAccessToken, accessToken: newAccessToken, refreshToken: newRefreshToken };
   }
 
   // ── Logout ─────────────────────────────────────────────────────────────────

@@ -4,71 +4,69 @@ import type { User, UserRole } from '../types';
 import { authAPI } from '../services/apiServices';
 import { tokenStorage } from '../services/api';
 
+type AuthUserPayload = {
+  _id?: string;
+  id?: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  identifier?: string;
+  department?: { name?: string } | string;
+};
+
+type AuthProfilePayload = {
+  _id?: string;
+  usn?: string;
+  department?: { name?: string } | string;
+};
+
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
-  // Real API login
   loginWithCredentials: (email: string, password: string) => Promise<void>;
-  // Mock login (dev fallback — works without backend)
-  login: (role: UserRole) => void;
   logout: () => void;
   clearError: () => void;
 }
 
-const mockUsers: Record<UserRole, User> = {
-  student: {
-    id: '1', name: 'Arjun Sharma', email: 'arjun.sharma@nexus.edu',
-    role: 'student', department: 'Computer Science Engineering', year: 3, rollNumber: 'CS21B047',
-  },
-  faculty: {
-    id: '2', name: 'Dr. Priya Nair', email: 'priya.nair@nexus.edu',
-    role: 'faculty', department: 'Computer Science Engineering', employeeId: 'FAC001',
-  },
-  placement: {
-    id: '3', name: 'Rajesh Kumar', email: 'placement@nexus.edu',
-    role: 'placement', department: 'Training & Placement Cell', employeeId: 'PLC001',
-  },
-  admin: {
-    id: '4', name: 'Dr. Meena Iyer', email: 'admin@nexus.edu',
-    role: 'admin', department: 'Administration', employeeId: 'ADM001',
-  },
-  hod: {
-    id: '5', name: 'Dr. Ramesh Babu', email: 'hod.cse@nexus.edu',
-    role: 'hod', department: 'Computer Science Engineering', employeeId: 'HOD001',
-  },
-  parent: {
-    id: '6', name: 'Mr. Suresh Sharma', email: 'suresh.sharma@gmail.com',
-    role: 'parent', department: 'Parent — CSE Dept.',
-  },
-};
+const departmentName = (department?: { name?: string } | string) =>
+  typeof department === 'string' ? department : department?.name;
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       user: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
 
-      // ── Real API login ─────────────────────────────────────────────────
       loginWithCredentials: async (email: string, password: string) => {
         set({ isLoading: true, error: null });
         try {
           const res = await authAPI.login({ email, password });
-          const { accessToken, refreshToken, user } = res.data;
+          const payload = res.data as {
+            token: string;
+            refreshToken: string;
+            user: AuthUserPayload;
+            profile?: AuthProfilePayload | null;
+          };
 
-          tokenStorage.set(accessToken, refreshToken);
+          tokenStorage.set(payload.token, payload.refreshToken);
 
-          // Map API user to frontend User type
+          const appId = payload.user.role === 'student' && payload.profile?._id
+            ? payload.profile._id
+            : payload.user._id || payload.user.id || '';
+
           const mappedUser: User = {
-            id: user._id || user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role as UserRole,
-            department: user.department?.name || user.department,
-            employeeId: user.identifier,
+            id: appId,
+            name: payload.user.name,
+            email: payload.user.email,
+            role: payload.user.role,
+            department: departmentName(payload.profile?.department) || departmentName(payload.user.department),
+            employeeId: payload.user.identifier,
+            rollNumber: payload.profile?.usn || payload.user.identifier,
+            profileId: payload.profile?._id,
           };
 
           set({ user: mappedUser, isAuthenticated: true, isLoading: false, error: null });
@@ -79,11 +77,6 @@ export const useAuthStore = create<AuthState>()(
           set({ isLoading: false, error: message, isAuthenticated: false });
           throw err;
         }
-      },
-
-      // ── Mock login (works without backend) ─────────────────────────────
-      login: (role: UserRole) => {
-        set({ user: mockUsers[role], isAuthenticated: true, error: null });
       },
 
       logout: () => {

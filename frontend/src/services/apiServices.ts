@@ -1,102 +1,127 @@
+import type { AxiosResponse } from 'axios';
 import api from './api';
 
-// ── Auth ───────────────────────────────────────────────────────────────────
+type ApiEnvelope<T = unknown> = {
+  success?: boolean;
+  message?: string;
+  data?: T;
+  pagination?: unknown;
+};
+
+export type NormalizedApiResponse<T = unknown> = {
+  data: T;
+  message?: string;
+  pagination?: unknown;
+  success?: boolean;
+};
+
+const normalizeApiResponse = <T = unknown>(response: AxiosResponse<ApiEnvelope<T> | T>): NormalizedApiResponse<T> => {
+  const body = response.data as ApiEnvelope<T>;
+  if (body && typeof body === 'object' && 'data' in body) {
+    return {
+      data: body.data as T,
+      message: body.message,
+      pagination: body.pagination,
+      success: body.success,
+    };
+  }
+
+  return { data: response.data as T };
+};
+
 export const authAPI = {
   login: (data: { email?: string; identifier?: string; password: string }) =>
-    api.post('/auth/login', data).then((r) => r.data),
-  me: () => api.get('/auth/me').then((r) => r.data),
-  logout: (refreshToken?: string) => api.post('/auth/logout', { refreshToken }),
+    api.post('/auth/login', data).then(normalizeApiResponse),
+  me: () => api.get('/auth/me').then(normalizeApiResponse),
+  logout: (refreshToken?: string) => api.post('/auth/logout', { refreshToken }).then(normalizeApiResponse),
 };
 
-// ── Student ────────────────────────────────────────────────────────────────
 export const studentAPI = {
-  getAll: (params?: Record<string, unknown>) => api.get('/students', { params }).then((r) => r.data),
-  getById: (id: string) => api.get(`/students/${id}`).then((r) => r.data),
+  getAll: (params?: Record<string, unknown>) => api.get('/students', { params }).then(normalizeApiResponse),
+  getById: (id: string) => api.get(`/students/${id}`).then(normalizeApiResponse),
   attendanceSummary: (id: string, params?: Record<string, unknown>) =>
-    api.get(`/students/${id}/attendance-summary`, { params }).then((r) => r.data),
+    api.get(`/students/${id}/attendance-summary`, { params }).then(normalizeApiResponse),
   marksSummary: (id: string, params?: Record<string, unknown>) =>
-    api.get(`/students/${id}/marks-summary`, { params }).then((r) => r.data),
-  aiAnalytics: (id: string) => api.get(`/students/${id}/ai-analytics`).then((r) => r.data),
+    api.get(`/students/${id}/marks-summary`, { params }).then(normalizeApiResponse),
+  aiAnalytics: (id: string) => api.get(`/students/${id}/ai-analytics`).then(normalizeApiResponse),
 };
 
-// ── Attendance ─────────────────────────────────────────────────────────────
 export const attendanceAPI = {
-  mark: (data: unknown) => api.post('/attendance/mark', data).then((r) => r.data),
+  mark: (data: unknown) => api.post('/attendance/mark', data).then(normalizeApiResponse),
   studentSummary: (id: string, params?: Record<string, unknown>) =>
-    api.get(`/attendance/student/${id}`, { params }).then((r) => r.data),
+    api.get(`/attendance/student/${id}`, { params }).then(normalizeApiResponse),
   heatmap: (id: string, days = 30) =>
-    api.get(`/attendance/student/${id}/heatmap`, { params: { days } }).then((r) => r.data),
+    api.get(`/attendance/student/${id}/heatmap`, { params: { days } }).then(normalizeApiResponse),
   monthlyTrend: (id: string) =>
-    api.get(`/attendance/student/${id}/monthly-trend`).then((r) => r.data),
+    api.get(`/attendance/student/${id}/monthly-trend`).then(normalizeApiResponse),
   department: (params: Record<string, unknown>) =>
-    api.get('/attendance/department', { params }).then((r) => r.data),
+    api.get('/attendance/department', { params }).then(normalizeApiResponse),
   lowRisk: (params: Record<string, unknown>) =>
-    api.get('/attendance/low-risk', { params }).then((r) => r.data),
+    api.get('/attendance/low-risk', { params }).then(normalizeApiResponse),
 };
 
-// ── Marks ──────────────────────────────────────────────────────────────────
 export const marksAPI = {
-  upload: (data: unknown) => api.post('/marks/upload', data).then((r) => r.data),
+  upload: (data: unknown) => api.post('/marks/upload', data).then(normalizeApiResponse),
   student: (id: string, params?: Record<string, unknown>) =>
-    api.get(`/marks/student/${id}`, { params }).then((r) => r.data),
-  gradeReport: (id: string) => api.get(`/marks/grade-report/${id}`).then((r) => r.data),
-  publish: (marksIds: string[]) => api.post('/marks/publish', { marksIds }).then((r) => r.data),
+    api.get(`/marks/student/${id}`, { params }).then(normalizeApiResponse),
+  gradeReport: (id: string) => api.get(`/marks/grade-report/${id}`).then(normalizeApiResponse),
+  publish: (marksIds: string[]) => api.post('/marks/publish', { marksIds }).then(normalizeApiResponse),
 };
 
-// ── HOD ───────────────────────────────────────────────────────────────────
 export const hodAPI = {
-  dashboard: () => api.get('/hod/dashboard').then((r) => r.data),
-  weakStudents: () => api.get('/hod/weak-students').then((r) => r.data),
-  facultyStatus: () => api.get('/hod/faculty-status').then((r) => r.data),
-  analytics: () => api.get('/hod/analytics').then((r) => r.data),
-  triggerAI: () => api.post('/hod/trigger-ai').then((r) => r.data),
+  dashboard: () => api.get('/hod/dashboard').then(normalizeApiResponse),
+  weakStudents: () => api.get('/hod/weak-students').then(normalizeApiResponse),
+  facultyStatus: () => api.get('/hod/faculty-status').then(normalizeApiResponse),
+  analytics: () => api.get('/hod/analytics').then(normalizeApiResponse),
+  triggerAI: () => api.post('/hod/trigger-ai').then(normalizeApiResponse),
 };
 
-// ── Parent ────────────────────────────────────────────────────────────────
 export const parentAPI = {
-  profile: () => api.get('/parent/profile').then((r) => r.data),
+  profile: () => api.get('/parent/profile').then(normalizeApiResponse),
   childOverview: (studentId: string) =>
-    api.get(`/parent/child/${studentId}/overview`).then((r) => r.data),
+    api.get(`/parent/child/${studentId}/overview`).then(normalizeApiResponse),
   childAttendance: (studentId: string) =>
-    api.get(`/parent/child/${studentId}/attendance`).then((r) => r.data),
+    api.get(`/parent/child/${studentId}/attendance`).then(normalizeApiResponse),
   childMarks: (studentId: string) =>
-    api.get(`/parent/child/${studentId}/marks`).then((r) => r.data),
+    api.get(`/parent/child/${studentId}/marks`).then(normalizeApiResponse),
   notifications: (params?: Record<string, unknown>) =>
-    api.get('/parent/notifications', { params }).then((r) => r.data),
+    api.get('/parent/notifications', { params }).then(normalizeApiResponse),
 };
 
-// ── Placement ─────────────────────────────────────────────────────────────
 export const placementAPI = {
   companies: (params?: Record<string, unknown>) =>
-    api.get('/placement/companies', { params }).then((r) => r.data),
-  stats: () => api.get('/placement/stats').then((r) => r.data),
-  drive: (id: string) => api.get(`/placement/drives/${id}`).then((r) => r.data),
+    api.get('/placement/companies', { params }).then(normalizeApiResponse),
+  stats: () => api.get('/placement/stats').then(normalizeApiResponse),
+  drive: (id: string) => api.get(`/placement/drives/${id}`).then(normalizeApiResponse),
   apply: (driveId: string, studentId: string) =>
-    api.post(`/placement/drives/${driveId}/apply`, { studentId }).then((r) => r.data),
+    api.post(`/placement/drives/${driveId}/apply`, { studentId }).then(normalizeApiResponse),
 };
 
-// ── Admin ─────────────────────────────────────────────────────────────────
 export const adminAPI = {
-  dashboard: () => api.get('/admin/dashboard').then((r) => r.data),
-  users: (params?: Record<string, unknown>) => api.get('/admin/users', { params }).then((r) => r.data),
-  auditLogs: (params?: Record<string, unknown>) => api.get('/admin/audit-logs', { params }).then((r) => r.data),
-  departments: () => api.get('/admin/departments').then((r) => r.data),
+  dashboard: () => api.get('/admin/dashboard').then(normalizeApiResponse),
+  users: (params?: Record<string, unknown>) => api.get('/admin/users', { params }).then(normalizeApiResponse),
+  auditLogs: (params?: Record<string, unknown>) => api.get('/admin/audit-logs', { params }).then(normalizeApiResponse),
+  departments: () => api.get('/admin/departments').then(normalizeApiResponse),
 };
 
-// ── AI ────────────────────────────────────────────────────────────────────
+export const facultyAPI = {
+  getAll: () => api.get('/faculty').then(normalizeApiResponse),
+  me: () => api.get('/faculty/me').then(normalizeApiResponse),
+  getById: (id: string) => api.get(`/faculty/${id}`).then(normalizeApiResponse),
+};
+
 export const aiAPI = {
-  studentRisk: (id: string) => api.get(`/ai/student/${id}/risk`).then((r) => r.data),
-  recommendations: (id: string) => api.get(`/ai/student/${id}/recommendations`).then((r) => r.data),
+  studentRisk: (id: string) => api.get(`/ai/student/${id}/risk`).then(normalizeApiResponse),
+  recommendations: (id: string) => api.get(`/ai/student/${id}/recommendations`).then(normalizeApiResponse),
   deptTrends: (department: string) =>
-    api.get('/ai/department/trends', { params: { department } }).then((r) => r.data),
+    api.get('/ai/department/trends', { params: { department } }).then(normalizeApiResponse),
   analyze: (data: { studentId?: string; departmentId?: string }) =>
-    api.post('/ai/analyze', data).then((r) => r.data),
+    api.post('/ai/analyze', data).then(normalizeApiResponse),
 };
 
-// ── Notifications ─────────────────────────────────────────────────────────
 export const notificationAPI = {
   list: (params?: Record<string, unknown>) =>
-    api.get('/notifications', { params }).then((r) => r.data),
-  markRead: (ids: string[]) => api.put('/notifications/read', { ids }).then((r) => r.data),
-  markAllRead: () => api.put('/notifications/read-all').then((r) => r.data),
+    api.get('/notifications', { params }).then(normalizeApiResponse),
+  markRead: (ids: string[]) => api.put('/notifications/read', { ids }).then(normalizeApiResponse),
+  markAllRead: () => api.put('/notifications/read-all').then(normalizeApiResponse),
 };
